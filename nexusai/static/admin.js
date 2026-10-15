@@ -362,12 +362,14 @@
   // ---------- theme: system -> light -> dark -> system ----------
   const THEME_KEY = "nexusai.theme";
   const THEME_LABEL = { system: "matches your system", light: "light", dark: "dark" };
+  const THEME_SHORT = { system: "Auto", light: "Light", dark: "Dark" };
   function applyTheme(mode) {
     if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
     else delete document.documentElement.dataset.theme;
     const button = $("#theme");
     button.dataset.mode = mode;
     button.title = `Theme: ${THEME_LABEL[mode]}. Click to change.`;
+    $("#theme-label").textContent = THEME_SHORT[mode];
     button.setAttribute("aria-label", `Theme: ${mode}`);
   }
   function savedTheme() {
