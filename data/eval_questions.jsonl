@@ -1,0 +1,33 @@
+{"question": "What is the default similarity threshold for the semantic cache?", "relevant_sources": ["caching.md"], "answer_keywords": ["0.95"]}
+{"question": "How long do exact cache entries live in Redis?", "relevant_sources": ["caching.md"], "answer_keywords": ["3600"]}
+{"question": "Why do RAG requests skip the semantic cache?", "relevant_sources": ["caching.md", "rag.md"], "answer_keywords": []}
+{"question": "Which requests are never cached because of their temperature?", "relevant_sources": ["caching.md"], "answer_keywords": ["0.3"]}
+{"question": "How does the gateway stop two different system prompts from sharing a cached answer?", "relevant_sources": ["caching.md"], "answer_keywords": ["namespace"]}
+{"question": "Which models are in the economy tier?", "relevant_sources": ["routing.md"], "answer_keywords": ["gpt-4o-mini"]}
+{"question": "What happens when every model in the chosen tier fails?", "relevant_sources": ["routing.md", "failover.md"], "answer_keywords": ["tier"]}
+{"question": "How can a caller force a specific model instead of letting the router decide?", "relevant_sources": ["routing.md"], "answer_keywords": ["model"]}
+{"question": "Which tier handles prompts that ask to debug or refactor code?", "relevant_sources": ["routing.md"], "answer_keywords": ["premium"]}
+{"question": "Why does the admin API reject a rule set?", "relevant_sources": ["routing.md", "troubleshooting.md"], "answer_keywords": []}
+{"question": "Which HTTP status codes does the gateway retry?", "relevant_sources": ["failover.md"], "answer_keywords": ["429"]}
+{"question": "How many consecutive failures open a provider's circuit breaker?", "relevant_sources": ["failover.md"], "answer_keywords": ["5"]}
+{"question": "What does the half-open state of the circuit breaker do?", "relevant_sources": ["failover.md"], "answer_keywords": ["trial"]}
+{"question": "Why is jitter added to retry backoff?", "relevant_sources": ["failover.md"], "answer_keywords": []}
+{"question": "Why is a 400 bad request not retried?", "relevant_sources": ["failover.md"], "answer_keywords": []}
+{"question": "What chunk size and overlap does the chunker use?", "relevant_sources": ["rag.md"], "answer_keywords": ["800", "150"]}
+{"question": "Why are the title and heading prepended to each chunk before embedding?", "relevant_sources": ["rag.md"], "answer_keywords": []}
+{"question": "How is the final hybrid retrieval score computed?", "relevant_sources": ["rag.md"], "answer_keywords": ["0.75"]}
+{"question": "What happens when no retrieved chunk is relevant enough?", "relevant_sources": ["rag.md"], "answer_keywords": ["know"]}
+{"question": "Does re-ingesting an unchanged document call the embedding API again?", "relevant_sources": ["rag.md"], "answer_keywords": []}
+{"question": "Which OpenTelemetry spans does a single chat request create?", "relevant_sources": ["observability.md"], "answer_keywords": ["provider.call"]}
+{"question": "How are cost savings calculated?", "relevant_sources": ["observability.md"], "answer_keywords": ["baseline"]}
+{"question": "Where do I send traces so they show up in Jaeger?", "relevant_sources": ["observability.md"], "answer_keywords": ["OTEL_EXPORTER_OTLP_ENDPOINT"]}
+{"question": "What does docker compose up start?", "relevant_sources": ["deployment.md"], "answer_keywords": ["Redis"]}
+{"question": "What embedding model and dimension are used in live mode?", "relevant_sources": ["deployment.md"], "answer_keywords": ["text-embedding-3-small"]}
+{"question": "How does the Anthropic adapter handle the system prompt?", "relevant_sources": ["architecture.md"], "answer_keywords": ["system"]}
+{"question": "What does the gateway use Redis for?", "relevant_sources": ["architecture.md", "caching.md"], "answer_keywords": ["exact"]}
+{"question": "I get HTTP 503 No healthy provider available. What should I check?", "relevant_sources": ["troubleshooting.md"], "answer_keywords": ["breaker"]}
+{"question": "Why would the gateway refuse to start after changing embedding models?", "relevant_sources": ["troubleshooting.md", "deployment.md"], "answer_keywords": ["dimension"]}
+{"question": "What is the monthly subscription price for NexusAI enterprise support?", "relevant_sources": []}
+{"question": "Which Kubernetes Helm chart version should I install?", "relevant_sources": []}
+{"question": "What is the maximum file size for uploading PDF attachments?", "relevant_sources": []}
+{"question": "Who won the 2022 football world cup?", "relevant_sources": []}

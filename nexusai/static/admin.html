@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NexusAI Admin</title>
+  <link rel="stylesheet" href="/admin/static/admin.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">NexusAI <span>gateway admin</span></div>
+    <form id="key-form" class="key-form">
+      <label for="admin-key">Admin key</label>
+      <input id="admin-key" type="password" placeholder="Leave empty if auth is off" autocomplete="off">
+      <button type="submit">Save</button>
+    </form>
+  </header>
+
+  <main>
+    <section>
+      <div class="section-head">
+        <h2>Overview</h2>
+        <div class="actions">
+          <button id="refresh" class="secondary">Refresh</button>
+          <button id="reset-stats" class="secondary danger">Reset stats</button>
+        </div>
+      </div>
+      <div id="stats" class="cards"></div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Provider health</h3>
+          <div id="providers"></div>
+        </div>
+        <div class="panel">
+          <h3>Requests by model</h3>
+          <div id="by-model"></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Routing rules</h2>
+        <div class="actions">
+          <button id="reset-rules" class="secondary">Restore defaults</button>
+          <button id="save-rules">Save rules</button>
+        </div>
+      </div>
+      <p class="hint">Rules run in priority order (lowest first). The first match picks a tier, and the gateway uses the
+        cheapest healthy model in it, escalating one tier up on failure. Match keys: <code>task</code>,
+        <code>keywords_any</code>, <code>min_prompt_tokens</code>, <code>max_prompt_tokens</code>.</p>
+      <div class="table-wrap"><table id="rules-table"></table></div>
+      <label class="editor-label" for="rules-json">Edit as JSON</label>
+      <textarea id="rules-json" spellcheck="false" rows="14"></textarea>
+      <p id="rules-msg" class="msg" role="status"></p>
+    </section>
+
+    <section>
+      <h2>RAG playground</h2>
+      <div class="grid-2">
+        <form id="ingest-form" class="panel">
+          <h3>Add a document</h3>
+          <label>Title <input name="title" required></label>
+          <label>Source <input name="source" placeholder="e.g. docs/caching.md"></label>
+          <label>Text <textarea name="text" rows="8" required></textarea></label>
+          <button type="submit">Ingest</button>
+          <p id="ingest-msg" class="msg" role="status"></p>
+          <h3>Documents</h3>
+          <ul id="documents" class="doc-list"></ul>
+        </form>
+        <form id="ask-form" class="panel">
+          <h3>Ask a question</h3>
+          <label>Question <textarea name="question" rows="3" required></textarea></label>
+          <label class="inline">Top k <input name="top_k" type="number" min="1" max="20" value="5"></label>
+          <button type="submit">Ask</button>
+          <div id="answer" class="answer" aria-live="polite"></div>
+        </form>
+      </div>
+    </section>
+
+    <section>
+      <h2>Recent requests</h2>
+      <div class="table-wrap"><table id="requests-table"></table></div>
+    </section>
+  </main>
+
+  <script src="/admin/static/admin.js"></script>
+</body>
+</html>

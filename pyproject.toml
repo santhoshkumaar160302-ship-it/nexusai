@@ -1,0 +1,28 @@
+[project]
+name = "nexusai"
+version = "1.2.0"
+description = "Fault-tolerant, cost-aware LLM gateway with RAG"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "BLE"]
+ignore = [
+    "E501",   # long lines are handled by the formatter's judgment, not enforced
+    "B008",   # dataclass field(default_factory=...) is intentional
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B017", "E402"]
+"scripts/*" = ["E402"]
+
+[tool.coverage.run]
+source = ["nexusai"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
