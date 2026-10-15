@@ -44,7 +44,7 @@ jobs:
           echo "sha=${{ github.event.workflow_run.head_sha || github.sha }}" >> "$GITHUB_OUTPUT"
           owner="${{ github.repository_owner }}"
           echo "image=ghcr.io/${owner,,}/nexusai" >> "$GITHUB_OUTPUT"   # registry names must be lowercase
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ steps.vars.outputs.sha }}
       - uses: docker/setup-buildx-action@v3
