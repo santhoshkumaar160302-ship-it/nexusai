@@ -359,6 +359,27 @@
   }
   $("#new-chat").addEventListener("click", newConversation);
 
+  // ---------- theme: system -> light -> dark -> system ----------
+  const THEME_KEY = "nexusai.theme";
+  const THEME_LABEL = { system: "matches your system", light: "light", dark: "dark" };
+  function applyTheme(mode) {
+    if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
+    else delete document.documentElement.dataset.theme;
+    const button = $("#theme");
+    button.dataset.mode = mode;
+    button.title = `Theme: ${THEME_LABEL[mode]}. Click to change.`;
+    button.setAttribute("aria-label", `Theme: ${mode}`);
+  }
+  function savedTheme() {
+    try { const t = localStorage.getItem(THEME_KEY); return t === "light" || t === "dark" ? t : "system"; } catch { return "system"; }
+  }
+  $("#theme").addEventListener("click", () => {
+    const next = { system: "light", light: "dark", dark: "system" }[$("#theme").dataset.mode] || "system";
+    try { if (next === "system") localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, next); } catch { /* storage unavailable */ }
+    applyTheme(next);
+  });
+  applyTheme(savedTheme());
+
   const ask = (q) => send("ask", q, "/v1/rag/query",
     (question, item) => {
       const history = askHistory();

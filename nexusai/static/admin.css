@@ -25,8 +25,10 @@
   --insp-w: 380px;
   color-scheme: light;
 }
+/* Dark theme: follows the system setting unless the person picked Light or Dark
+   with the theme button (stored as data-theme on <html>). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #111418;
     --panel: #181c21;
     --panel-2: #1f242a;
@@ -47,6 +49,27 @@
     --check: #5d6772;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #111418;
+  --panel: #181c21;
+  --panel-2: #1f242a;
+  --rail: #0b0d10;
+  --rail-ink: #7d8691;
+  --ink: #e4e8ec;
+  --muted: #98a2ad;
+  --line: #2b3138;
+  --acc: #7d97ff;
+  --acc-soft: #222b4a;
+  --acc-ink: #0d1430;
+  --mem: #e9b04f;
+  --mem-soft: #3a2c12;
+  --bad: #ff8f8f;
+  --bad-soft: #3d1f1f;
+  --ok: #6fcf97;
+  --ok-soft: #173024;
+  --check: #5d6772;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -85,7 +108,8 @@ h3 { font-size: 14px; font-weight: 600; }
 .rail a[data-tab] svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 .rail a[data-tab]:hover { color: #ffffff; background: rgba(255, 255, 255, 0.06); }
 .rail a[aria-current="page"] { color: #ffffff; background: var(--acc); }
-@media (prefers-color-scheme: dark) { .rail a[aria-current="page"] { color: var(--acc-ink); } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rail a[aria-current="page"] { color: var(--acc-ink); } }
+:root[data-theme="dark"] .rail a[aria-current="page"] { color: var(--acc-ink); }
 .badge {
   position: absolute; top: 4px; right: 8px; min-width: 17px; height: 17px; padding: 0 4px;
   border-radius: 9px; background: #3a414b; color: #fff; font-size: 10.5px; line-height: 17px; text-align: center;
@@ -105,6 +129,13 @@ h3 { font-size: 14px; font-weight: 600; }
 .new-chat { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 5px 11px; }
 .new-chat svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .new-chat[hidden] { display: none; }
+.theme-btn {
+  display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--muted); cursor: pointer;
+}
+.theme-btn:hover { color: var(--ink); border-color: var(--acc); }
+.theme-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: none; }
+.theme-btn[data-mode="system"] .i-system, .theme-btn[data-mode="light"] .i-light, .theme-btn[data-mode="dark"] .i-dark { display: block; }
 .pill { font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 6px; background: var(--ok-soft); color: var(--ok); white-space: nowrap; }
 .pill.sim { background: var(--mem-soft); color: var(--mem); }
 .providers { display: flex; gap: 10px; font-size: 12.5px; color: var(--muted); }
