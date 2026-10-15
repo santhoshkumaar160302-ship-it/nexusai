@@ -22,11 +22,13 @@ It runs fully live on Gemini's free tier, and it also runs completely offline wi
 Open [nexusai-latest.onrender.com](https://nexusai-latest.onrender.com) and try these:
 
 - **Ask** tab: "Which HTTP status codes does the gateway retry?" You get an answer with numbered citations. Click a number to see the exact passage it came from.
+- **Ask** tab: follow up with "and which ones does it never retry?", then say "continue". Ask remembers the conversation; click an answer to see what it actually searched for.
 - **Ask** tab: "Who won the 2022 World Cup?" The sample documents don't cover this, so it says it doesn't know instead of guessing.
 - **Chat** tab: "Explain step by step how a TCP handshake works." "Step by step" sends it to the strongest model; the inspector on the right shows which one answered and why.
 - **Chat** tab: ask "What is a Bloom filter?", then follow up with "When would I use one instead of a hash set?" It remembers the conversation, so "one" means a Bloom filter. **New chat** starts over.
 - **Chat** tab: send the same message twice. The second reply comes from the cache, instantly and for $0.
 - **Monitor** tab: requests, cost, cache hits and failovers since the server started.
+- The button at the bottom of the sidebar switches between light, dark and your system's setting.
 
 Or call the API directly from a terminal:
 
@@ -97,7 +99,7 @@ When a chat request comes in:
 | RAG | Splits documents at their headings, finds relevant sections with a mix of meaning and keyword matching, and writes answers with numbered citations. | `nexusai/rag/` |
 | Evaluation | Measures whether retrieval finds the right document and whether answers cite correctly and abstain when they should. | `nexusai/rag/evaluation.py`, `scripts/eval_rag.py` |
 | Observability | OpenTelemetry spans for each request, cache lookup and provider call, plus counters for tokens and cost and a SQL request log. | `nexusai/telemetry.py` |
-| Console UI | A web console for asking your documents, chatting, managing documents, monitoring and editing settings. Chat remembers the conversation (the last 10 exchanges) until you start a new one, and answers are shown with their formatting. Click any answer to open the request inspector: which model answered, time, cost, tokens, a timeline of every model it tried, and the sources it used. | `nexusai/static/` |
+| Console UI | A web console for asking your documents, chatting, managing documents, monitoring and editing settings. Chat remembers the conversation (the last 10 exchanges) until you start a new one, and answers are shown with their formatting. Ask also takes follow-ups and "continue". Light and dark themes, or follow the system. Click any answer to open the request inspector: which model answered, time, cost, tokens, a timeline of every model it tried, and the sources it used. | `nexusai/static/` |
 | Benchmarks | A load test that injects failures and checks every cached answer against ground truth. | `scripts/benchmark.py` |
 
 ## Getting started
