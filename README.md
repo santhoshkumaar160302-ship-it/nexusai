@@ -3,6 +3,8 @@
 ![CI](https://github.com/santhoshkumaar160302-ship-it/nexusai/actions/workflows/ci.yml/badge.svg)
 ![CD](https://github.com/santhoshkumaar160302-ship-it/nexusai/actions/workflows/cd.yml/badge.svg)
 
+**Live demo:** [nexusai-latest.onrender.com](https://nexusai-latest.onrender.com). It runs on Render's free tier, so the first visit after a quiet spell can take about a minute to wake up.
+
 NexusAI is a gateway that sits between your app and the AI providers (Google Gemini, OpenAI and Anthropic). Your app sends every request to one place in one format, and the gateway takes care of the annoying parts:
 
 - **It picks the model.** Simple questions go to a cheap, fast model and harder ones go to a stronger model, based on rules you can edit while it runs.
@@ -76,24 +78,18 @@ In this mode the AI providers are simulated, so nothing costs money. In the cons
 ### Run it live on Gemini's free tier
 
 1. Get a free key from [Google AI Studio](https://aistudio.google.com/apikey).
-2. Run a quick live check. It makes about 15 API calls and suggests cache and RAG thresholds that suit real embeddings:
+2. Copy `.env.example` to `.env` and set:
 
-   ```bash
-   export GEMINI_API_KEY=your-key
-   python scripts/smoke_live.py
+   ```
+   GEMINI_API_KEY=your-key
+   NEXUS_PROVIDER_MODE=live
    ```
 
-3. Start the gateway in live mode and run the eval with real answers. The `--delay` keeps you under the free tier's per-minute limit:
+3. Start the console with `python -m nexusai.app` and open http://localhost:8000.
 
-   ```bash
-   export NEXUS_PROVIDER_MODE=live
-   python -m nexusai.app
-   python scripts/eval_rag.py --answers --delay 7
-   ```
+To measure answer quality with real answers, run `python scripts/eval_rag.py --answers --delay 7` (the delay keeps you under the free tier's per-minute limit). `python scripts/smoke_live.py` is an optional quick check that also suggests thresholds for real embeddings.
 
-Instead of exporting variables every time, you can copy `.env.example` to `.env` and put your settings there. It's loaded automatically, and anything you export still wins.
-
-With only a Gemini key, chat uses the Gemini Flash-Lite and Flash models, and savings are measured against running everything on `gemini-3.8-flash` at Google's paid prices. Keep in mind that Google may use free-tier requests to improve its products, so don't send anything private. If you add OpenAI or Anthropic keys later, the router starts using those too.
+Google may use free-tier requests to improve its products, so don't send anything private.
 
 ### Run the full stack with Docker
 
