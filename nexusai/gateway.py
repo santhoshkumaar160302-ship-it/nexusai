@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 from .cache import ExactCache, is_cacheable, semantic_namespace
 from .config import Settings
@@ -39,6 +39,34 @@ from .telemetry import (
 )
 
 log = logging.getLogger("nexusai.gateway")
+
+
+def route_summary(attempts: list[dict], answered_by: str | None = None, answered_ms: float = 0.0) -> list[dict]:
+    """Collapse raw attempt records into readable hops: one entry per model and outcome.
+
+    outcome is "answered", "rate_limited", "failed" or "skipped"; `count` is how
+    many times that happened in a row (retries), `detail` a short reason, and
+    `ms` the time spent on that hop (summed across retries).
+    """
+    hops: list[dict] = []
+    for a in attempts:
+        if a.get("skipped"):
+            outcome, detail = "skipped", "provider marked unhealthy (circuit open)"
+        elif a.get("status") == 429:
+            outcome, detail = "rate_limited", "quota or rate limit reached"
+        else:
+            status = a.get("status")
+            outcome, detail = "failed", (f"HTTP {status}" if status else "timeout or connection error")
+        ms = round(a.get("ms", 0.0), 2)
+        if hops and hops[-1]["model"] == a["model"] and hops[-1]["outcome"] == outcome:
+            hops[-1]["count"] += 1
+            hops[-1]["ms"] = round(hops[-1]["ms"] + ms, 2)
+        else:
+            hops.append({"model": a["model"], "outcome": outcome, "detail": detail, "count": 1, "ms": ms})
+    if answered_by:
+        hops.append({"model": answered_by, "outcome": "answered", "detail": "", "count": 1,
+                     "ms": round(answered_ms, 2)})
+    return hops
 
 
 class GatewayError(Exception):
@@ -66,6 +94,10 @@ class GatewayResponse:
     attempts: int
     failover: bool
     similarity: float | None = None
+    # Each model the router tried, in order, and what happened: shown in the admin UI.
+    route: list[dict] = field(default_factory=list)
+    cache_ms: float = 0.0  # time spent checking the exact and semantic caches
+    truncated: bool = False  # the answer hit max_tokens and was cut off
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -95,9 +127,12 @@ class Gateway:
             span.set_attribute("nexus.request_id", request_id)
             span.set_attribute("nexus.task", request.task)
 
+            cache_started = time.perf_counter()
             cached, embedding = self._cache_lookup(request)
+            cache_ms = (time.perf_counter() - cache_started) * 1000
             if cached:
                 response = self._from_cache(request_id, cached, started)
+                response.cache_ms = round(cache_ms, 2)
                 span.set_attribute("nexus.cache", response.cache)
                 self._record(request, response)
                 return response
@@ -106,7 +141,7 @@ class Gateway:
             span.set_attribute("nexus.rule", plan.rule)
             span.set_attribute("nexus.tier", plan.tier)
             try:
-                result, model, attempts, failover = self._call_with_failover(request, plan.candidates)
+                result, model, attempts, failover, route = self._call_with_failover(request, plan.candidates)
             except GatewayError as exc:
                 self._record_error(request_id, request, plan, exc, started)
                 span.set_attribute("nexus.error", str(exc))
@@ -130,6 +165,9 @@ class Gateway:
                 latency_ms=(time.perf_counter() - started) * 1000,
                 attempts=attempts,
                 failover=failover,
+                route=route,
+                cache_ms=round(cache_ms, 2),
+                truncated=result.truncated,
             )
             span.set_attribute("nexus.model", model)
             span.set_attribute("nexus.cache", "miss")
@@ -187,6 +225,8 @@ class Gateway:
     def _cache_store(self, request: ChatRequest, response: GatewayResponse, embedding=None) -> None:
         if not is_cacheable(request, self.settings.cache_max_temperature):
             return
+        if response.truncated:
+            return  # don't replay a cut-off answer; a retry with more tokens should get a fresh one
         payload = {
             "content": response.content,
             "provider": response.provider,
@@ -246,25 +286,26 @@ class Gateway:
             if outcome == "rate_limited":
                 rate_limited.append(info)
             elif outcome is not None:
-                return self._success(outcome, info, attempts, primary)
+                return self._success(outcome, info, attempts, primary, state)
 
         if rate_limited:
             self._sleep(backoff_delay(1, self.settings.retry_base_delay_s * 4))
             for info in rate_limited:
                 outcome = self._try_candidate(request, info, attempts, state, retries=0)
                 if outcome not in (None, "rate_limited"):
-                    return self._success(outcome, info, attempts, primary)
+                    return self._success(outcome, info, attempts, primary, state)
             raise GatewayError("Rate limited by every available model", status=429, attempts=attempts)
         if not state["tried_any"]:
             raise GatewayError("No healthy provider available for this request", status=503, attempts=attempts)
         raise GatewayError("All providers failed for this request", status=502, attempts=attempts)
 
     @staticmethod
-    def _success(result, info, attempts, primary):
+    def _success(result, info, attempts, primary, state):
         calls = sum(1 for a in attempts if "error" in a) + 1
         # Failover = served by a different model than the router's first choice.
         # A retry that succeeds on the same model is not a failover.
-        return result, info.name, calls, info is not primary
+        route = route_summary(attempts, info.name, state.get("answer_ms", 0.0))
+        return result, info.name, calls, info is not primary, route
 
     def _try_candidate(self, request, info, attempts, state, retries):
         """Call one candidate with retries. Returns the provider result, "rate_limited",
@@ -282,11 +323,13 @@ class Gateway:
                 span.set_attribute("nexus.provider", info.provider)
                 span.set_attribute("nexus.model", info.name)
                 span.set_attribute("nexus.attempt", attempt)
+                call_started = time.perf_counter()
                 try:
                     result = provider.chat(request, info.name)
                 except ProviderError as exc:
                     span.set_attribute("nexus.error", str(exc))
-                    attempts.append({"model": info.name, "error": str(exc), "status": exc.status})
+                    attempts.append({"model": info.name, "error": str(exc), "status": exc.status,
+                                     "ms": (time.perf_counter() - call_started) * 1000})
                     if exc.status == 429:
                         # A quota, not a sign the provider is unhealthy: don't trip the breaker.
                         provider_attempts.add(1, {"provider": info.provider, "outcome": "rate_limited"})
@@ -305,6 +348,7 @@ class Gateway:
                     continue
                 breaker.record_success()
                 provider_attempts.add(1, {"provider": info.provider, "outcome": "ok"})
+                state["answer_ms"] = (time.perf_counter() - call_started) * 1000
                 return result
         return None
 

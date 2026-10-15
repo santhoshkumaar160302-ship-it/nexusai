@@ -3,86 +3,178 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NexusAI Admin</title>
+  <title>NexusAI Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="/admin/static/admin.css">
 </head>
-<body>
-  <header class="topbar">
-    <div class="brand">NexusAI <span>gateway admin</span></div>
-    <form id="key-form" class="key-form">
-      <label for="admin-key">Admin key</label>
-      <input id="admin-key" type="password" placeholder="Leave empty if auth is off" autocomplete="off">
-      <button type="submit">Save</button>
-    </form>
-  </header>
+<body data-tab="ask">
+  <nav class="rail" aria-label="Sections">
+    <a class="rail-logo" href="#ask" aria-label="NexusAI home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="7" cy="16" r="3.5"/><circle cx="25" cy="8" r="3.5"/><circle cx="25" cy="24" r="3.5"/><path d="M10.5 16C16 16 16 8 21.5 8M10.5 16C16 16 16 24 21.5 24"/></svg>
+    </a>
+    <a href="#ask" data-tab="ask">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><circle cx="12" cy="14" r="2.6"/><path d="m14 16 2.2 2.2"/></svg>
+      <span>Ask</span>
+    </a>
+    <a href="#chat" data-tab="chat">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>
+      <span>Chat</span>
+    </a>
+    <a href="#documents" data-tab="documents">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16H7z"/><path d="M4 7v13h10"/><path d="M10 9h4M10 12h4"/></svg>
+      <span>Docs</span><b class="badge" id="doc-count"></b>
+    </a>
+    <a href="#monitor" data-tab="monitor">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+      <span>Monitor</span>
+    </a>
+    <a href="#settings" data-tab="settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+      <span>Settings</span>
+    </a>
+  </nav>
 
-  <main>
-    <section>
-      <div class="section-head">
-        <h2>Overview</h2>
-        <div class="actions">
-          <button id="refresh" class="secondary">Refresh</button>
-          <button id="reset-stats" class="secondary danger">Reset stats</button>
-        </div>
+  <div class="workspace">
+    <header class="topbar">
+      <div>
+        <h1 id="view-title">Ask your documents</h1>
+        <p class="subtitle" id="view-subtitle"></p>
       </div>
-      <div id="stats" class="cards"></div>
+      <div class="status" id="status" aria-live="polite">
+        <button type="button" id="new-chat" class="new-chat" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>New chat</span>
+        </button>
+        <span class="pill" id="mode-pill">Connecting…</span>
+        <span class="providers" id="providers"></span>
+      </div>
+    </header>
+    <div class="banner" id="banner" role="alert" hidden></div>
+
+    <!-- Ask -->
+    <section class="view convo-view" id="view-ask" aria-label="Ask your documents">
+      <div class="conversation" id="ask-log" aria-live="polite"></div>
+      <form class="composer" id="ask-form">
+        <label class="sr-only" for="ask-input">Your question</label>
+        <textarea id="ask-input" rows="1" placeholder="Ask a question about your documents" required></textarea>
+        <div class="composer-row">
+          <label class="inline">Sources
+            <select id="ask-k"><option>3</option><option selected>5</option><option>8</option></select>
+          </label>
+          <span class="hint">Enter to send, Shift+Enter for a new line</span>
+          <button type="submit" class="primary">Ask</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Chat -->
+    <section class="view convo-view" id="view-chat" aria-label="Chat" hidden>
+      <div class="conversation" id="chat-log" aria-live="polite"></div>
+      <form class="composer" id="chat-form">
+        <label class="sr-only" for="chat-input">Your message</label>
+        <textarea id="chat-input" rows="1" placeholder="Send a message through the gateway" required></textarea>
+        <div class="composer-row">
+          <label class="inline">Model
+            <select id="chat-model"><option value="auto">Automatic</option></select>
+          </label>
+          <label class="inline check"><input type="checkbox" id="chat-cache" checked> Reuse saved answers</label>
+          <button type="submit" class="primary">Send</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Documents -->
+    <section class="view page" id="view-documents" aria-label="Documents" hidden>
       <div class="grid-2">
-        <div class="panel">
-          <h3>Provider health</h3>
-          <div id="providers"></div>
+        <div class="card">
+          <h2>Upload files</h2>
+          <label class="dropzone" id="dropzone">
+            <input type="file" id="file-input" accept=".md,.markdown,.txt" multiple>
+            <span class="dz-main"><strong>Choose files</strong> or drop them here</span>
+            <span class="dz-sub">Markdown or plain text (.md, .txt)</span>
+          </label>
+          <div class="sample-row">
+            <div>
+              <h3>Sample documents</h3>
+              <p class="muted">Eight short documents about how NexusAI works.</p>
+            </div>
+            <button type="button" id="load-samples">Load samples</button>
+          </div>
         </div>
-        <div class="panel">
-          <h3>Requests by model</h3>
-          <div id="by-model"></div>
-        </div>
+        <form class="card" id="paste-form">
+          <h2>Paste text</h2>
+          <label>Title <input name="title" required placeholder="Remote work policy"></label>
+          <label>Source <span class="muted">(optional)</span> <input name="source" placeholder="policies/remote-work.md"></label>
+          <label>Text <textarea name="text" rows="7" required placeholder="Markdown headings (# Title, ## Section) help find the right part."></textarea></label>
+          <button type="submit" class="primary">Add document</button>
+        </form>
+      </div>
+      <p class="msg" id="docs-msg" role="status"></p>
+      <div class="card flush">
+        <div class="card-head"><h2>Your documents</h2><span class="muted" id="doc-summary"></span></div>
+        <div class="table-scroll"><table class="table" id="doc-table"></table></div>
       </div>
     </section>
 
-    <section>
-      <div class="section-head">
+    <!-- Monitor -->
+    <section class="view page" id="view-monitor" aria-label="Monitor" hidden>
+      <div class="toolbar">
+        <span class="muted">Since the server started. Updates every 10 seconds.</span>
+        <div class="row">
+          <button type="button" id="refresh">Refresh</button>
+          <button type="button" id="reset-stats" class="danger">Clear history</button>
+        </div>
+      </div>
+      <dl class="metrics" id="stats"></dl>
+      <div class="grid-2">
+        <div class="card"><h2>Answers by model</h2><div id="by-model"></div></div>
+        <div class="card"><h2>Provider health</h2><div id="health-detail"></div></div>
+      </div>
+      <div class="card flush">
+        <div class="card-head"><h2>Recent requests</h2></div>
+        <div class="table-scroll"><table class="table" id="requests"></table></div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section class="view page" id="view-settings" aria-label="Settings" hidden>
+      <form class="card narrow" id="key-form">
+        <h2>Admin key</h2>
+        <p class="muted">Only needed when the server sets <code>NEXUS_ADMIN_API_KEY</code>. Stored in this browser only.</p>
+        <div class="row">
+          <label class="sr-only" for="admin-key">Admin key</label>
+          <input id="admin-key" type="password" autocomplete="off" placeholder="Paste the admin key">
+          <button type="submit" class="primary">Save key</button>
+        </div>
+        <p class="msg" id="key-msg" role="status"></p>
+      </form>
+      <div class="card">
         <h2>Routing rules</h2>
-        <div class="actions">
-          <button id="reset-rules" class="secondary">Restore defaults</button>
-          <button id="save-rules">Save rules</button>
-        </div>
+        <p class="muted">Checked top to bottom. The first rule that fits picks a tier, and the gateway uses the cheapest working model in it. If that fails it tries a stronger tier, then cheaper ones, before giving up.</p>
+        <ol class="rules" id="rules"></ol>
+        <details class="advanced">
+          <summary>Edit rules as JSON</summary>
+          <p class="muted">Match keys: <code>task</code>, <code>keywords_any</code>, <code>min_prompt_tokens</code>, <code>max_prompt_tokens</code>. Each rule sets a <code>tier</code> or a <code>model</code>; the last rule should match everything.</p>
+          <textarea id="rules-json" rows="14" spellcheck="false"></textarea>
+          <div class="row">
+            <button type="button" id="save-rules" class="primary">Save rules</button>
+            <button type="button" id="reset-rules">Restore defaults</button>
+          </div>
+          <p class="msg" id="rules-msg" role="status"></p>
+        </details>
       </div>
-      <p class="hint">Rules run in priority order (lowest first). The first match picks a tier, and the gateway uses the
-        cheapest healthy model in it, escalating one tier up on failure. Match keys: <code>task</code>,
-        <code>keywords_any</code>, <code>min_prompt_tokens</code>, <code>max_prompt_tokens</code>.</p>
-      <div class="table-wrap"><table id="rules-table"></table></div>
-      <label class="editor-label" for="rules-json">Edit as JSON</label>
-      <textarea id="rules-json" spellcheck="false" rows="14"></textarea>
-      <p id="rules-msg" class="msg" role="status"></p>
-    </section>
-
-    <section>
-      <h2>RAG playground</h2>
-      <div class="grid-2">
-        <form id="ingest-form" class="panel">
-          <h3>Add a document</h3>
-          <label>Title <input name="title" required></label>
-          <label>Source <input name="source" placeholder="e.g. docs/caching.md"></label>
-          <label>Text <textarea name="text" rows="8" required></textarea></label>
-          <button type="submit">Ingest</button>
-          <p id="ingest-msg" class="msg" role="status"></p>
-          <h3>Documents</h3>
-          <ul id="documents" class="doc-list"></ul>
-        </form>
-        <form id="ask-form" class="panel">
-          <h3>Ask a question</h3>
-          <label>Question <textarea name="question" rows="3" required></textarea></label>
-          <label class="inline">Top k <input name="top_k" type="number" min="1" max="20" value="5"></label>
-          <button type="submit">Ask</button>
-          <div id="answer" class="answer" aria-live="polite"></div>
-        </form>
+      <div class="card narrow">
+        <h2>About this server</h2>
+        <dl class="about" id="about"></dl>
       </div>
     </section>
+  </div>
 
-    <section>
-      <h2>Recent requests</h2>
-      <div class="table-wrap"><table id="requests-table"></table></div>
-    </section>
-  </main>
+  <aside class="inspector" id="inspector" aria-label="Request inspector">
+    <h2 class="inspector-title">Request inspector</h2>
+    <div id="inspector-body"></div>
+  </aside>
 
   <script src="/admin/static/admin.js"></script>
 </body>

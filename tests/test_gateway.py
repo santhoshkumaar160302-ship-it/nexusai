@@ -131,3 +131,11 @@ def test_cache_miss_embeds_the_prompt_only_once(services):
     services.gateway.embedder.embed = counting
     ask(services, "How do vector databases index embeddings?")
     assert calls["n"] == 1
+
+
+def test_cut_off_answers_are_flagged_and_not_cached(services, providers):
+    first = ask(services, "Tell me everything about B-trees", max_tokens=3)
+    assert first.truncated
+    again = ask(services, "Tell me everything about B-trees", max_tokens=3)
+    assert again.cache == "miss"  # a cut-off answer is never replayed from the cache
+    assert providers["openai"].calls == 2

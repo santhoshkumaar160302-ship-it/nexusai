@@ -16,7 +16,7 @@ class ChatRequest:
     messages: list[Message]
     model: str = "auto"  # "auto" lets the router choose
     temperature: float = 0.0
-    max_tokens: int = 512
+    max_tokens: int = 2048
     task: str = "chat"  # "chat" | "rag"; routing rules can match on it
     tier: str | None = None  # force a tier ("economy" | "standard" | "premium")
     use_cache: bool = True
@@ -44,6 +44,7 @@ class ChatResponse:
     model: str
     prompt_tokens: int
     completion_tokens: int
+    truncated: bool = False  # the model hit max_tokens and stopped mid-answer
     raw: dict = field(default_factory=dict, repr=False)
 
 

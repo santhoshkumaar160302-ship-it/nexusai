@@ -1,8 +1,8 @@
-# Deploying NexusAI with CI/CD
+# Deploying NexusAI
 
-This guide takes the project from your laptop to a live URL that redeploys itself on every push to `main`.
+This guide takes NexusAI from your laptop to a live URL that updates itself every time you push to `main`. It takes about 20 minutes, and everything here is free.
 
-## How the pipeline works
+## The big picture
 
 ```mermaid
 flowchart LR
@@ -18,92 +18,95 @@ flowchart LR
     TAG[git tag v1.2.0] --> G2[Publish versioned image] --> REL[GitHub Release]
 ```
 
-| Workflow | Runs on | What it does |
-| --- | --- | --- |
-| `ci.yml` | Every push and pull request | Lint (ruff); tests on Python 3.12 and 3.13 against real PostgreSQL+pgvector and Redis with a 90% coverage gate; RAG retrieval and benchmark quality gates; Docker build, start, health check, API smoke test, and a check that no `.env` was baked into the image |
-| `cd.yml` | CI success on `main`; tags `v*` | Builds and pushes the image to GitHub Container Registry (`latest`, `sha-<commit>`, and version tags), deploys that exact digest to Render, then polls `/health` until the new commit is live. Tags also create a GitHub Release |
-| `dependabot.yml` | Weekly | Pull requests for Python packages, GitHub Actions and the Docker base image; each one runs CI before you merge |
+When you push, GitHub runs two workflows, one after the other.
 
-Nothing deploys unless CI passed for that exact commit. If the Render secret isn't set, CD still publishes images and skips the deploy with a notice.
+**CI** checks that the code is healthy. It runs the linter and the tests against real PostgreSQL and Redis, and it fails if document retrieval gets worse or the cache serves a wrong answer. It also builds the Docker image, starts it and calls the API to make sure it really works. It runs on every push and every pull request.
+
+**CD** ships it. It runs only when CI passes on `main`. It publishes the Docker image to GitHub Container Registry (GHCR), tells Render to deploy that exact image, and waits until the live site reports the new commit. If you haven't connected Render yet, it still publishes the image and skips the deploy step.
+
+**Dependabot** opens at most one grouped pull request a month each for Python packages, GitHub Actions and the Docker base image, and CI tests each one before you merge.
+
+Nothing gets deployed unless CI passed for that exact commit.
 
 ## 1. Push the project to GitHub
 
-Create an empty repository on GitHub (for example `nexusai`, public so recruiters can see it), then from the project folder:
+Create an empty repository on GitHub called `nexusai`. Make it public if you want recruiters to see it. Then run this from the project folder:
 
 ```bash
 git init
 git add .
-git status            # check that .env and .venv are NOT listed (they are in .gitignore)
+git status            # make sure .env and .venv are NOT listed
 git commit -m "NexusAI: LLM gateway with RAG"
 git branch -M main
-git remote add origin https://github.com/<your-username>/nexusai.git
+git remote add origin https://github.com/santhoshkumaar160302-ship-it/nexusai.git
 git push -u origin main
 ```
 
-Open the **Actions** tab: CI starts immediately and takes about 3 to 5 minutes. When it passes, CD publishes the image.
+Open the **Actions** tab on GitHub. CI starts right away and takes 3 to 5 minutes. When it goes green, CD publishes the image.
 
-## 2. Make the container image public
+## 2. Let Render pull the image
 
-The first CD run creates the package `ghcr.io/<your-username>/nexusai`. Packages start private, and Render needs to pull it:
+The first CD run creates a package at `ghcr.io/santhoshkumaar160302-ship-it/nexusai`. GitHub makes new packages private, and Render needs to be able to download yours. You have two options:
 
-GitHub profile → **Packages** → `nexusai` → **Package settings** → **Change visibility** → **Public**.
-
-(Alternatively, keep it private and add a GitHub token as a registry credential in Render.)
+- **Make the package public (easiest).** On GitHub, go to your profile, then **Packages** → `nexusai` → **Package settings** → **Change visibility** → **Public**. This only exposes the built image, and your API key is never in it.
+- **Keep it private.** Create a GitHub personal access token with only the `read:packages` permission, and add it in Render as a registry credential (your GitHub username plus the token).
 
 ## 3. Create the service on Render
 
-1. Sign up at [render.com](https://render.com) and choose **New → Web Service → Existing image**.
-2. Image URL: `ghcr.io/<your-username>/nexusai:latest`
-3. Instance type: **Free**. It sleeps after 15 minutes without traffic and takes about a minute to wake.
-4. Health check path: `/health`
-5. Environment variables:
+1. Sign up at [render.com](https://render.com), then choose **New → Web Service → Existing image**.
+2. For the image URL, enter `ghcr.io/santhoshkumaar160302-ship-it/nexusai:latest`.
+3. Pick the **Free** instance type. It goes to sleep after 15 minutes without visitors and takes about a minute to wake up.
+4. Set the health check path to `/health`.
+5. Add these environment variables:
 
 | Key | Value |
 | --- | --- |
 | `GEMINI_API_KEY` | your Gemini key |
 | `NEXUS_PROVIDER_MODE` | `live` |
-| `RAG_MIN_SCORE` | `0.62` (or the value `smoke_live.py` suggested) |
-| `NEXUS_INGEST_ON_START` | `data/sample_docs` (reloads the demo docs after every restart) |
-| `NEXUS_API_KEY` | a long random string (protects `/v1/*`) |
-| `NEXUS_ADMIN_API_KEY` | a different long random string (protects the admin API) |
+| `RAG_MIN_SCORE` | `0.62`, or whatever `smoke_live.py` suggested |
+| `NEXUS_INGEST_ON_START` | `data/sample_docs`, so the demo documents come back after every restart |
+| `NEXUS_API_KEY` | a long random string that protects the `/v1` API |
+| `NEXUS_ADMIN_API_KEY` | a different long random string that protects the admin API |
 
-Generate random keys with:
+You can generate the random strings with:
 
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-**Always set both keys on a public URL.** Without them anyone could use up your Gemini quota.
+**Don't skip the two keys.** Without them, anyone who finds your URL can use up your Gemini quota.
 
-Deploy once by hand and open `https://<your-service>.onrender.com/health`.
+Deploy once by hand, then open `https://<your-service>.onrender.com/health` to check it's up.
 
-## 4. Connect Render to the pipeline
+## 4. Connect Render to GitHub
 
-1. In Render, open the service's **Settings → Deploy Hook** and copy the URL.
-2. In GitHub, open the repository's **Settings → Secrets and variables → Actions**:
-   - **Secrets** tab → New secret `RENDER_DEPLOY_HOOK_URL` = the deploy hook URL
-   - **Variables** tab → New variable `DEPLOY_URL` = `https://<your-service>.onrender.com`
-3. Optional: **Settings → Environments → production → Required reviewers** adds a manual approval before each deploy.
+This step lets CD deploy for you.
 
-From now on, every push to `main` that passes CI is deployed automatically, and the pipeline fails if the live site doesn't report the new commit within 10 minutes.
+1. In Render, open your service's **Settings**, find **Deploy Hook**, and copy the URL.
+2. In GitHub, open the repository's **Settings → Secrets and variables → Actions**.
+   - On the **Secrets** tab, add `RENDER_DEPLOY_HOOK_URL` with the deploy hook URL.
+   - On the **Variables** tab, add `DEPLOY_URL` with `https://<your-service>.onrender.com`.
+3. Optionally, go to **Settings → Environments → production** and add yourself as a required reviewer if you'd like to approve each deploy by hand.
 
-## 5. Releases
+That's it. From now on, every push to `main` that passes CI goes live automatically. If the site doesn't report the new commit within 10 minutes, the pipeline fails so you know something's wrong.
+
+## 5. Releasing a version
 
 ```bash
 git tag v1.2.0
 git push origin v1.2.0
 ```
 
-This publishes `ghcr.io/<your-username>/nexusai:1.2.0` and creates a GitHub Release with generated notes.
+This publishes `ghcr.io/santhoshkumaar160302-ship-it/nexusai:1.2.0` and creates a GitHub Release with notes written from your commits.
 
-## Limits of the free setup
+## What to expect from the free setup
 
-- **In-memory store:** with no `DATABASE_URL`/`REDIS_URL`, the request log, caches and documents reset on every restart or deploy. `NEXUS_INGEST_ON_START` reloads the demo documents automatically.
-- **One worker:** in-memory state is per process, so the image runs one worker with 8 threads. With PostgreSQL and Redis configured, raise `NEXUS_WORKERS`.
-- **Cold starts:** the free instance sleeps when idle; the first request after a while takes about a minute.
-- **Persistent production setup:** add a managed PostgreSQL with pgvector and a Redis instance, set `DATABASE_URL` and `REDIS_URL`, and the same image runs with durable state. Render's free PostgreSQL expires after 30 days, so use a paid or external database for anything long-lived.
+- **Data resets on restart.** Without a database, the request history, cache and uploaded documents live in memory and disappear on every restart or deploy. The sample documents are reloaded automatically because of `NEXUS_INGEST_ON_START`.
+- **One worker.** Because that state is in memory, the image runs a single worker with 8 threads. Once you add PostgreSQL and Redis, you can raise `NEXUS_WORKERS`.
+- **Slow first request.** The free instance sleeps when nobody's using it, so the first visit after a while takes about a minute.
+- **Making it permanent.** Add a managed PostgreSQL (with pgvector) and a Redis, set `DATABASE_URL` and `REDIS_URL`, and the same image keeps its data across restarts. Render's free PostgreSQL expires after 30 days, so use a paid or external database for anything you want to keep.
 
-## Run the production image locally
+## Running the production setup locally
 
 ```bash
 docker compose up --build    # gateway + PostgreSQL/pgvector + Redis, 4 workers

@@ -61,5 +61,6 @@ class AnthropicProvider(Provider):
             model=data.get("model", model),
             prompt_tokens=usage.get("input_tokens", 0),
             completion_tokens=usage.get("output_tokens", 0),
+            truncated=data.get("stop_reason") == "max_tokens",
             raw=data,
         )

@@ -307,3 +307,14 @@ def test_rate_limited_everywhere_returns_429(client, providers):
         p.chat = limited
     resp = client.post("/v1/chat", json={"messages": [{"role": "user", "content": "hi"}]})
     assert resp.status_code == 429
+
+
+def test_truncated_answers_are_flagged():
+    def handler(request):
+        return httpx.Response(200, json={
+            "model": "gpt-4o-mini", "usage": {"prompt_tokens": 5, "completion_tokens": 9},
+            "choices": [{"message": {"content": "partial"}, "finish_reason": "length"}],
+        })
+    p = OpenAIProvider("sk-test", transport=httpx.MockTransport(handler))
+    req = ChatRequest(messages=[Message("user", "hi")])
+    assert p.chat(req, "gpt-4o-mini").truncated

@@ -65,5 +65,6 @@ class OpenAIProvider(Provider):
             model=data.get("model", model),
             prompt_tokens=usage.get("prompt_tokens", 0),
             completion_tokens=usage.get("completion_tokens", 0),
+            truncated=choice.get("finish_reason") == "length",
             raw=data,
         )

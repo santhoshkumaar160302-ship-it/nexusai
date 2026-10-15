@@ -67,6 +67,13 @@ class RAGAnswer:
     retrieval_ms: float = 0.0
     total_ms: float = 0.0
     request_id: str | None = None
+    rule: str | None = None
+    tier: str | None = None
+    route: list = field(default_factory=list)
+    cache_ms: float = 0.0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    truncated: bool = False
     meta: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -94,7 +101,7 @@ class RAGPipeline:
             if not chunks:
                 return self._no_context(question, retrieval_ms, started)
 
-            request = ChatRequest(messages=build_messages(question, chunks), task="rag", tier=tier, max_tokens=600)
+            request = ChatRequest(messages=build_messages(question, chunks), task="rag", tier=tier, max_tokens=1024)
             response = self.gateway.chat(request)
             cited = extract_citations(response.content, len(chunks))
             citations = [{"n": n, **chunks[n - 1].chunk.public()} for n in cited]
@@ -112,6 +119,13 @@ class RAGPipeline:
                 retrieval_ms=round(retrieval_ms, 2),
                 total_ms=round((time.perf_counter() - started) * 1000, 2),
                 request_id=response.id,
+                rule=response.rule,
+                tier=response.tier,
+                route=response.route,
+                cache_ms=response.cache_ms,
+                prompt_tokens=response.prompt_tokens,
+                completion_tokens=response.completion_tokens,
+                truncated=response.truncated,
             )
 
     def _no_context(self, question: str, retrieval_ms: float, started: float) -> RAGAnswer:

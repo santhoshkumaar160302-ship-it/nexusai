@@ -35,12 +35,16 @@ class MockProvider(Provider):
             raise ProviderError(f"{self.name} simulated HTTP {status}", provider=self.name, status=status)
 
         content = self._answer(request)
+        truncated = estimate_tokens(content) > request.max_tokens
+        if truncated:  # behave like a real model that runs out of tokens
+            content = content[: request.max_tokens * 4]
         return ChatResponse(
             content=content,
             provider=self.name,
             model=model,
             prompt_tokens=estimate_tokens(request.prompt_text),
             completion_tokens=estimate_tokens(content),
+            truncated=truncated,
         )
 
     @staticmethod

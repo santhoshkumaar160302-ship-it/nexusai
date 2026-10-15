@@ -8,13 +8,13 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, redirect, request, send_from_directory
 
 from . import __version__
 from .cache import ExactCache, build_kv
 from .config import Settings
 from .embeddings import Embedder, EmbeddingError, build_embedder
-from .gateway import Gateway, GatewayError
+from .gateway import Gateway, GatewayError, route_summary
 from .pricing import CATALOG
 from .providers import Provider, build_providers
 from .providers.base import ChatRequest, Message
@@ -25,6 +25,7 @@ from .telemetry import setup_telemetry
 
 log = logging.getLogger("nexusai")
 STATIC_DIR = Path(__file__).parent / "static"
+SAMPLE_DOCS_DIR = Path(__file__).resolve().parents[1] / "data" / "sample_docs"
 VALID_ROLES = {"system", "user", "assistant"}
 
 
@@ -79,7 +80,7 @@ def parse_chat_request(body: dict) -> ChatRequest:
     temperature = float(body.get("temperature", 0.0))
     if not 0.0 <= temperature <= 2.0:
         raise ValueError("'temperature' must be between 0 and 2")
-    max_tokens = int(body.get("max_tokens", 512))
+    max_tokens = int(body.get("max_tokens", 2048))
     if not 1 <= max_tokens <= 8192:
         raise ValueError("'max_tokens' must be between 1 and 8192")
     model = body.get("model", "auto") or "auto"
@@ -154,7 +155,7 @@ def create_app(services: Services | None = None) -> Flask:
     @app.errorhandler(GatewayError)
     def handle_gateway_error(exc: GatewayError):
         status = exc.status if 400 <= exc.status < 600 else 502
-        return jsonify({"error": str(exc), "attempts": exc.attempts}), status
+        return jsonify({"error": str(exc), "attempts": exc.attempts, "route": route_summary(exc.attempts)}), status
 
     # health ---------------------------------------------------------------
     @app.get("/health")
@@ -173,6 +174,10 @@ def create_app(services: Services | None = None) -> Flask:
             "cache_backend": type(services.kv).__name__,
             "cache_ok": kv_ok,
             "embeddings": settings.embedding_backend,
+            "available_models": [
+                {"name": m.name, "provider": m.provider, "tier": m.tier}
+                for m in CATALOG.values() if m.provider in services.gateway.providers
+            ],
         })
 
     # gateway --------------------------------------------------------------
@@ -239,9 +244,25 @@ def create_app(services: Services | None = None) -> Flask:
         return jsonify({"deleted": document_id})
 
     # admin ----------------------------------------------------------------
+    @app.get("/")
+    def root():
+        return redirect("/admin")
+
+    @app.get("/admin/")
+    def admin_trailing_slash():
+        return redirect("/admin")
+
     @app.get("/admin")
     def admin_page():
         return send_from_directory(STATIC_DIR, "admin.html")
+
+    @app.post("/admin/api/sample-docs")
+    @require_key(admin=True)
+    def admin_sample_docs():
+        if not SAMPLE_DOCS_DIR.is_dir():
+            return _bad_request("sample documents are not bundled with this deployment", 404)
+        results = services.ingestor.ingest_directory(SAMPLE_DOCS_DIR)
+        return jsonify({"ingested": [r.to_dict() for r in results]})
 
     @app.get("/admin/static/<path:filename>")
     def admin_static(filename: str):
@@ -250,7 +271,7 @@ def create_app(services: Services | None = None) -> Flask:
     @app.get("/admin/api/stats")
     @require_key(admin=True)
     def admin_stats():
-        return jsonify(services.store.stats())
+        return jsonify({**services.store.stats(), "baseline_model": settings.baseline_model})
 
     @app.post("/admin/api/stats/reset")
     @require_key(admin=True)

@@ -1,18 +1,29 @@
-# Weekly dependency updates as pull requests; CI runs on each one before merge.
+# Monthly dependency updates, grouped so each ecosystem opens at most one PR.
+# CI runs on each one before merge. Major version bumps are skipped; do them by hand.
 version: 2
 updates:
   - package-ecosystem: pip
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 1
     groups:
-      opentelemetry:
-        patterns: ["opentelemetry-*"]
+      python-deps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: docker
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 1

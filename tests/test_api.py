@@ -100,3 +100,49 @@ def test_failed_ingest_on_start_does_not_stop_the_app(services):
     services.settings.ingest_on_start = "/does/not/exist"
     client = create_app(services).test_client()
     assert client.get("/health").status_code == 200
+
+
+def test_root_and_trailing_slash_redirect_to_admin(client):
+    for path in ("/", "/admin/"):
+        resp = client.get(path)
+        assert resp.status_code in (301, 302) and resp.headers["Location"].endswith("/admin")
+
+
+def test_load_sample_documents(client):
+    body = client.post("/admin/api/sample-docs").get_json()
+    assert len(body["ingested"]) == 8
+    assert len(client.get("/v1/rag/documents").get_json()) == 8
+
+
+def test_health_lists_only_configured_models(client):
+    names = {m["provider"] for m in client.get("/health").get_json()["available_models"]}
+    assert names == {"openai", "anthropic"}
+
+
+def test_chat_and_rag_responses_include_route_trace(client, providers):
+    providers["openai"].down = True
+    body = client.post("/v1/chat", json={"messages": [{"role": "user", "content": "hello there"}]}).get_json()
+    outcomes = [(h["model"], h["outcome"]) for h in body["route"]]
+    assert outcomes[0] == ("gpt-4o-mini", "failed") and outcomes[-1][1] == "answered"
+    assert body["route"][0]["count"] == 3  # three attempts collapsed into one hop
+
+    client.post("/admin/api/sample-docs")
+    rag = client.post("/v1/rag/query", json={"question": "Which HTTP status codes does the gateway retry?"}).get_json()
+    assert rag["route"][-1]["outcome"] == "answered" and rag["rule"] == "rag-answers"
+
+
+def test_failure_response_includes_route(client, providers):
+    for p in providers.values():
+        p.down = True
+    body = client.post("/v1/chat", json={"messages": [{"role": "user", "content": "x"}]}).get_json()
+    assert body["route"] and all(h["outcome"] != "answered" for h in body["route"])
+
+
+def test_route_hops_carry_timings(client, providers):
+    providers["openai"].latency_ms = 20  # make each simulated call measurable
+    providers["anthropic"].latency_ms = 20
+    providers["openai"].down = True
+    body = client.post("/v1/chat", json={"messages": [{"role": "user", "content": "timed question"}]}).get_json()
+    assert all(h["ms"] > 0 for h in body["route"])
+    assert body["route"][0]["ms"] > body["route"][-1]["ms"]  # three failed tries took longer than one success
+    assert body["cache_ms"] >= 0
