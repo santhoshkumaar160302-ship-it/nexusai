@@ -9,7 +9,12 @@ bearer token, so this adapter reuses the OpenAI one and changes only:
 - an optional `reasoning_effort` ("low" | "medium" | "high"). Gemini 3 models
   always think and their thinking tokens are billed as output, so a low effort
   keeps latency and cost down for simple requests. It is off by default because
-  not every model accepts it; set GEMINI_REASONING_EFFORT to enable it.
+  not every model accepts it; set GEMINI_REASONING_EFFORT to enable it,
+- extra room in `max_tokens` for thinking. Gemini counts its hidden thinking
+  tokens against `max_tokens`, so a 1,024-token limit could be used up by
+  thinking and cut the visible answer off after a few hundred words. The
+  caller's `max_tokens` means "length of the answer", so the thinking budget is
+  added on top. It's a ceiling, not a charge: only tokens actually used are billed.
 
 Free-tier quotas are per model, which is why the router lists several Gemini
 models per tier: a 429 on one model moves the request to the next.
@@ -22,6 +27,7 @@ from .base import ChatRequest
 from .openai_provider import OpenAIProvider
 
 GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+THINKING_HEADROOM_TOKENS = 4096  # room for hidden thinking on top of the visible answer
 
 
 class GeminiProvider(OpenAIProvider):
@@ -41,7 +47,7 @@ class GeminiProvider(OpenAIProvider):
         payload = {
             "model": model,
             "messages": [{"role": m.role, "content": m.content} for m in request.messages],
-            "max_tokens": request.max_tokens,
+            "max_tokens": request.max_tokens + THINKING_HEADROOM_TOKENS,
             "temperature": request.temperature,
         }
         if self.reasoning_effort:

@@ -146,3 +146,14 @@ def test_route_hops_carry_timings(client, providers):
     assert all(h["ms"] > 0 for h in body["route"])
     assert body["route"][0]["ms"] > body["route"][-1]["ms"]  # three failed tries took longer than one success
     assert body["cache_ms"] >= 0
+
+
+def test_rag_follow_up_over_http(client):
+    client.post("/admin/api/sample-docs")
+    first = client.post("/v1/rag/query", json={"question": "How does the circuit breaker work?"}).get_json()
+    history = [{"role": "user", "content": "How does the circuit breaker work?"},
+               {"role": "assistant", "content": first["answer"]}]
+    more = client.post("/v1/rag/query", json={"question": "continue", "history": history}).get_json()
+    assert more["mode"] == "continue" and more["search_query"] == "How does the circuit breaker work?"
+    bad = client.post("/v1/rag/query", json={"question": "x", "history": [{"role": "system", "content": "hi"}]})
+    assert bad.status_code == 400

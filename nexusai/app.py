@@ -215,7 +215,8 @@ def create_app(services: Services | None = None) -> Flask:
         top_k = int(body.get("top_k", settings.rag_top_k))
         if not 1 <= top_k <= 20:
             raise ValueError("'top_k' must be between 1 and 20")
-        result = services.rag.answer(str(body.get("question", "")), top_k=top_k, tier=body.get("tier"))
+        result = services.rag.answer(str(body.get("question", "")), top_k=top_k, tier=body.get("tier"),
+                                     history=body.get("history"))
         return jsonify(result.to_dict())
 
     @app.post("/v1/rag/search")

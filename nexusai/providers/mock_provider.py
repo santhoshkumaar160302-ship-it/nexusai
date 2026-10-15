@@ -50,6 +50,12 @@ class MockProvider(Provider):
     @staticmethod
     def _answer(request: ChatRequest) -> str:
         question = request.last_user_message
+        if request.task == "rewrite":
+            # Stand-in for an LLM rewrite: the follow-up plus the previous question for context.
+            latest = re.search(r"Latest message: (.*)", question, re.S)
+            previous = re.findall(r"^User: (.*)$", question, re.M)
+            follow_up = latest.group(1).strip() if latest else question
+            return f"{follow_up} (about: {previous[-1]})" if previous else follow_up
         if request.task == "rag":
             # Echo the first context passage so RAG answers carry a real citation.
             match = re.search(r"\[(\d+)\][^\n]*\n(.+?)(?:\n\n|\Z)", question, re.S)

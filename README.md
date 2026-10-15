@@ -180,6 +180,7 @@ Other routes: `GET /health`, `GET /v1/models`, `GET /v1/rag/documents`, `DELETE 
 4. **Finding the right sections.** The retriever pulls a wide set of candidates by meaning, then re-ranks them with 75% meaning and 25% keyword overlap. It drops anything below a relevance floor and takes at most 3 chunks from any one document.
 5. **Answering with citations.** The model sees numbered sources and is told to cite them as `[n]` and to say so when the sources don't contain the answer. Answers go through the gateway like any other request, so they get routing, failover, caching and cost tracking too.
 6. **Knowing when to stop.** If nothing clears the relevance floor, it answers "I don't know" right away without calling a model at all.
+7. **Follow-up questions.** Ask remembers the last three questions. A follow-up like "and how long does it stay open?" is useless as a search on its own, so a cheap model first rewrites it into a full question ("How long does a circuit breaker stay open?"), and that is what gets searched. "Continue" skips the rewrite: it searches the previous question again, gets the same sources, and asks the model to pick up where its last answer stopped. The inspector shows what was searched for.
 
 ### Measuring it
 
@@ -300,7 +301,7 @@ pytest                                                          # unit and API t
 NEXUS_TEST_DATABASE_URL=postgresql://... NEXUS_TEST_REDIS_URL=redis://.../15 pytest --cov=nexusai
 ```
 
-There are 99 tests. They cover routing (including Gemini-only setups), failover, rate limits, circuit breakers, both caches, and the Gemini, OpenAI and Anthropic adapters against a mocked HTTP layer. They also cover embedding outages, document splitting, retrieval, citations, the HTTP API and its auth, and the PostgreSQL and Redis backends. Coverage is 94% when the database tests run, and CI always runs them against real containers.
+There are 111 tests. They cover routing (including Gemini-only setups), failover, rate limits, circuit breakers, both caches, and the Gemini, OpenAI and Anthropic adapters against a mocked HTTP layer. They also cover embedding outages, document splitting, retrieval, citations, the HTTP API and its auth, and the PostgreSQL and Redis backends. Coverage is 94% when the database tests run, and CI always runs them against real containers.
 
 ## Project layout
 
@@ -332,6 +333,7 @@ tests/                the pytest suite
 - **A rate limit isn't an outage.** Free-tier quotas are per model, so a 429 skips to the next model without tripping the circuit breaker, and one delayed second pass picks up the per-minute limits once they reset.
 - **The cache is never something requests depend on.** If the embedding API is down, chat still works and just misses the cache. Document Q&A returns a clear 503, since it can't search without an embedding.
 - **768-dimension embeddings.** Gemini returns 3,072 dimensions by default, but pgvector's HNSW index tops out at 2,000. Google recommends 768 as a smaller size, and the vectors are re-normalized after shortening.
+- **Rewrite follow-ups before searching.** Searching with "and the second one?" finds nothing useful, and searching with the whole conversation drowns the new question in old text. Rewriting the follow-up into one standalone question costs a single economy-tier call and keeps retrieval sharp. Rewrites skip the cache: the transcript dominates that prompt, so two different follow-ups could look alike to the semantic cache. If no model answers, it searches with the previous question plus the follow-up instead.
 - **One embedding per request.** The embedding used to check the cache is reused when storing the answer, which halves embedding calls on cache misses.
 - **Cut-off answers are flagged, never cached.** When a model hits its token limit it stops mid-sentence. The gateway detects that (`finish_reason: length` from OpenAI and Gemini, `stop_reason: max_tokens` from Anthropic), marks the answer as truncated so the UI can say so, and doesn't cache it, so asking again gets a fresh answer instead of the broken one. I found this one live: the first default limit of 512 tokens cut off longer answers, so the default is now 2,048.
 - **Chat history has a cap.** Each chat message carries the earlier conversation so follow-ups make sense, but only the last 10 exchanges, so a long chat doesn't make every message more expensive than the last. Cached answers are keyed by the whole conversation, so "tell me more" in one chat never replays an answer from another.

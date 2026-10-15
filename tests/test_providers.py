@@ -132,6 +132,7 @@ def test_hash_embedder_similarity_tracks_overlap():
 # ---- Gemini ---------------------------------------------------------------
 from nexusai.embeddings import EmbeddingError, GeminiEmbedder  # noqa: E402
 from nexusai.providers import GeminiProvider  # noqa: E402
+from nexusai.providers.gemini_provider import THINKING_HEADROOM_TOKENS  # noqa: E402
 
 
 def test_gemini_uses_openai_compatible_endpoint():
@@ -144,7 +145,8 @@ def test_gemini_uses_openai_compatible_endpoint():
     call = sent[0]
     assert call["url"] == "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
     assert call["headers"]["authorization"] == "Bearer gm-key"
-    assert call["json"]["max_tokens"] == 50 and "max_completion_tokens" not in call["json"]
+    # The answer gets its 50 tokens plus room for Gemini's hidden thinking, which counts against max_tokens.
+    assert call["json"]["max_tokens"] == 50 + THINKING_HEADROOM_TOKENS and "max_completion_tokens" not in call["json"]
     assert call["json"]["temperature"] == 0.2 and "reasoning_effort" not in call["json"]
 
 

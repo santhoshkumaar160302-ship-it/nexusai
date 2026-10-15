@@ -7,7 +7,7 @@
   const TIER_NAMES = { economy: "fast", standard: "balanced", premium: "most capable" };
   const PROVIDER_NAMES = { openai: "OpenAI", anthropic: "Anthropic", gemini: "Gemini" };
   const VIEWS = {
-    ask: ["Ask your documents", "Answers come only from your documents, with sources. Select an answer to inspect it."],
+    ask: ["Ask your documents", "Answers come only from your documents, with sources. Ask follow-ups, or say \"continue\". Select an answer to inspect it."],
     chat: ["Chat", "Remembers this conversation until you start a new chat. Select a reply to inspect it."],
     documents: ["Documents", "What the assistant can answer from. Each document is split into sections and indexed by meaning."],
     monitor: ["Monitor", ""],
@@ -263,7 +263,7 @@
       const cutoff = item.result?.truncated
         ? el("p", { class: "cutoff" }, kind === "chat"
           ? "This answer hit the length limit and stopped early. Reply \"continue\" to get the rest."
-          : "This answer hit the length limit and stopped early. Try a narrower question.")
+          : "This answer hit the length limit and stopped early. Reply \"continue\" to get the rest.")
         : null;
       const open = () => select(kind, item.id);
       return [
@@ -328,13 +328,24 @@
     ]);
   }
 
+  // The same for Ask, but shorter (the server keeps the last three exchanges). Each earlier
+  // question is sent as it was understood ("and how long?" becomes the full question), so a
+  // later "continue" searches for the right thing.
+  function askHistory() {
+    const done = state.items.ask.filter((i) => !i.pending && !i.error && i.result && i.result.cache !== "no_context");
+    return done.slice(-3).flatMap((i) => [
+      { role: "user", content: i.result.mode && i.result.mode !== "new" ? i.result.search_query : i.question },
+      { role: "assistant", content: i.result.answer },
+    ]);
+  }
+
   function updateNewChat() {
     const button = $("#new-chat");
     const convo = state.tab === "ask" || state.tab === "chat";
     button.hidden = !convo;
     if (!convo) return;
     const items = state.items[state.tab];
-    button.lastElementChild.textContent = state.tab === "chat" ? "New chat" : "Clear answers";
+    button.lastElementChild.textContent = state.tab === "chat" ? "New chat" : "New conversation";
     button.disabled = !items.length || items.some((i) => i.pending);
   }
 
@@ -349,7 +360,12 @@
   $("#new-chat").addEventListener("click", newConversation);
 
   const ask = (q) => send("ask", q, "/v1/rag/query",
-    (question) => ({ question, top_k: Number($("#ask-k").value) }), $("#ask-input"), $("#ask-form .primary"));
+    (question, item) => {
+      const history = askHistory();
+      item.historyCount = history.length;
+      return { question, top_k: Number($("#ask-k").value), history };
+    },
+    $("#ask-input"), $("#ask-form .primary"));
   const chat = (m) => send("chat", m, "/v1/chat",
     (message, item) => {
       const history = chatHistory();
@@ -473,6 +489,8 @@
       ["Total time", ms(r.total_ms ?? r.latency_ms)],
       ["Cost", item.error ? "$0" : fromMemory ? "$0, from memory" : usd(r.cost_usd)],
       ...(item.kind === "chat" ? [["Conversation sent", item.historyCount ? `${item.historyCount / 2} earlier exchange${item.historyCount === 2 ? "" : "s"}` : "just this message"]] : []),
+      ...(item.kind === "ask" && r.mode && r.mode !== "new" ? [["Searched for", r.mode === "continue"
+        ? `the previous question again, to continue the answer` : `"${r.search_query}"`]] : []),
       ["Tokens in / out", fromMemory || r.cache === "no_context" || item.error ? "none" : `${(r.prompt_tokens || 0).toLocaleString()} / ${(r.completion_tokens || 0).toLocaleString()}${r.truncated ? " (hit the limit)" : ""}`],
     ];
     fill(body,
