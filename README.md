@@ -17,6 +17,45 @@ It runs fully live on Gemini's free tier, and it also runs completely offline wi
 
 **Built with:** Python, Flask, PostgreSQL with pgvector, Redis, OpenTelemetry, plain JavaScript/HTML/CSS for the UI, Docker and GitHub Actions.
 
+## Try the live demo
+
+Open [nexusai-latest.onrender.com](https://nexusai-latest.onrender.com) and try these:
+
+- **Ask** tab: "Which HTTP status codes does the gateway retry?" You get an answer with numbered citations. Click a number to see the exact passage it came from.
+- **Ask** tab: "Who won the 2022 World Cup?" The sample documents don't cover this, so it says it doesn't know instead of guessing.
+- **Chat** tab: "Explain step by step how a TCP handshake works." "Step by step" sends it to the strongest model; the inspector on the right shows which one answered and why.
+- **Chat** tab: ask "What is a Bloom filter?", then follow up with "When would I use one instead of a hash set?" It remembers the conversation, so "one" means a Bloom filter. **New chat** starts over.
+- **Chat** tab: send the same message twice. The second reply comes from the cache, instantly and for $0.
+- **Monitor** tab: requests, cost, cache hits and failovers since the server started.
+
+Or call the API directly from a terminal:
+
+```bash
+# Ask the sample documents (answer, citations and the sources used)
+curl -s -X POST https://nexusai-latest.onrender.com/v1/rag/query \
+  -H 'content-type: application/json' \
+  -d '{"question": "How does the semantic cache work?"}'
+
+# Chat through the gateway
+curl -s -X POST https://nexusai-latest.onrender.com/v1/chat \
+  -H 'content-type: application/json' \
+  -d '{"messages": [{"role": "user", "content": "What is a Bloom filter?"}]}'
+
+# A follow-up: send the earlier turns along with the new question
+curl -s -X POST https://nexusai-latest.onrender.com/v1/chat \
+  -H 'content-type: application/json' \
+  -d '{"messages": [
+        {"role": "user", "content": "What is a Bloom filter?"},
+        {"role": "assistant", "content": "A Bloom filter is a space-efficient probabilistic set that can say an item is definitely not present or possibly present."},
+        {"role": "user", "content": "When would I use one instead of a hash set?"}
+      ]}'
+
+# Health, version and the models it can use
+curl -s https://nexusai-latest.onrender.com/health
+```
+
+The API itself doesn't store conversations: like the OpenAI and Gemini APIs, you send the earlier turns with each request, which is exactly what the Chat tab does for you. Each reply includes which model answered, whether it came from the cache, the tokens, the cost and the route it took. If the first request is slow, the free instance was asleep; give it a minute.
+
 ## How a request flows through it
 
 ```mermaid
